@@ -1,36 +1,44 @@
-
-
 import chromadb
+from openai import OpenAI
 from typing import List, Dict
 from pyprojroot import here
 from load_config import APPConfig
+from sentence_transformers import SentenceTransformer
 
-
+# Load application configuration
 APP_CONFIG = APPConfig.load()
 
 
 
 class DataPrep:
-
     def __init__(self):
-        self.clinet = chromadb.PersistentClient(
-            path = str(here(APP_CONFIG.chroma_db_path))
-        )
+        self.client = chromadb.PersistentClient(
+            path=str(here(APP_CONFIG.chroma_db_path)))
 
     
-    def _get_embedding(self, text: str) -> List[float]:
-        """Get embedding using a SentenceTransformer model"""
+    def _get_embedding(self, text:str)->List[float]:
+        """
+        Load the embedding model and return embeddings for a list of texts.
+
+        Args:
+            texts (list[str]): List of input strings.
+            model_name (str): HuggingFace SentenceTransformer model name.
+
+        Returns:
+            numpy.ndarray: Embeddings matrix.
+        """
         try:
-            embedding = self.embedding_model.encode(text, convert_to_numpy=True)
-            return embedding.tolist()
+
+            model = SentenceTransformer(APP_CONFIG.embedding_model)
+            embeddings = model.encode(text)
+            return embeddings
         except Exception as e:
-            print(f"Error getting embedding: {e}")
+            print(f'Error getting Embedding ! {e}')
             return []
 
-    def _create_tech_docs_dataset(self)-> List[Dict]:
-        """
-        convert techincal documents dataset
-        """
+
+    def _create_tech_docs_dataset(self) -> List[Dict]:
+        """Create technical documentation dataset"""
         return [
             {
                 "id": "tech_001",
@@ -134,14 +142,9 @@ class DataPrep:
             }
         ]
 
-
-    def _create_faq_dataset(self)-> List[Dict]:
-
-        """
-        create FAQ datasets.
-        """
+    def _create_faq_dataset(self) -> List[Dict]:
+        """Create FAQ dataset"""
         return [
-
             {
                 "id": "faq_001",
                 "content": "Q: What is your return policy? A: We offer a 30-day return policy for all items. Items must be returned in original condition with receipt. Refunds will be processed within 5-7 business days after we receive the returned item.",
@@ -244,12 +247,9 @@ class DataPrep:
             }
         ]
 
-    def _create_news_datasets(self) -> List[Dict]:
-        """
-        create news dataset.
-        """
+    def _create_news_dataset(self) -> List[Dict]:
+        """Create news articles dataset"""
         return [
-
             {
                 "id": "news_001",
                 "content": "Tech Giant Announces Major AI Breakthrough: Researchers have developed a new neural network architecture that can process natural language 50% faster than previous models while using 30% less computational power. The breakthrough could revolutionize how AI assistants handle complex conversations.",
@@ -353,103 +353,83 @@ class DataPrep:
         ]
 
     def _populate_collection(self, collection_name: str, documents: List[Dict]):
-        """
-        Populate ChromaDB collection with documents
-        """
-
+        """Populate ChromaDB collection with documents"""
         try:
-
-            # try to delete existing documents and create fresh one
-
+            # Try to delete existing collection and create fresh one
             try:
                 self.client.delete_collection(collection_name)
-                print(f'delete exisitng collection {collection_name}')
+                print(f"Deleted existing collection: {collection_name}")
             except:
                 print(
                     f"Collection {collection_name} doesn't exist, creating new one")
 
+            # Create fresh collection
             collection = self.client.create_collection(collection_name)
 
-
-            # Prepare data for ChromaDB.
+            # Prepare data for ChromaDB
             ids = []
             texts = []
             metadatas = []
             embeddings = []
 
-
             print(
-                f"Processing {documents} documents for {collection_name}"
-            )
+                f"Processing {len(documents)} documents for {collection_name}...")
 
             for doc in documents:
-
+                # Get embedding for the document content
                 embedding = self._get_embedding(doc['content'])
-
-                if embedding:
-                    idx.append(doc['id'])
+                if embedding is not None:
+                    ids.append(doc['id'])
                     texts.append(doc['content'])
                     metadatas.append(doc['metadata'])
-                    embeddings.appenb(embedding)
-                    print(f"proccessed {doc['id']}")
-
+                    embeddings.append(embedding)
+                    print(f"Processed {doc['id']}")
                 else:
-                    print(
-                        f"Failed to get embedding for {doc['id']}"
-                    )
-            # add to the collection
+                    print(f"Failed to get embedding for {doc['id']}")
+
+            # Add to collection
             if ids:
                 collection.add(
                     ids=ids,
-                    documents = texts,
-                    metadatas = metadatas,
-                    embeddings = embeddings
+                    documents=texts,
+                    metadatas=metadatas,
+                    embeddings=embeddings
                 )
-
                 print(
                     f"Successfully added {len(ids)} documents to {collection_name}")
-
             else:
                 print(f"No documents were added to {collection_name}")
 
         except Exception as e:
             print(f"Error populating collection {collection_name}: {e}")
 
+    def setup_all_datasets(self):
+        """Setup all datasets in ChromaDB"""
+        print("Setting up RAG Playground datasets...")
 
-
-    def setup_all_dataset(self):
-
-        """
-        Setup all the datasets in Chromadb
-        """
-
-        print('Setting up RAG playground dataset......')
-
-        # Craete dataset.
+        # Create datasets
         tech_docs = self._create_tech_docs_dataset()
         faq_data = self._create_faq_dataset()
-        news_article = self._create_news_datasets()
+        news_articles = self._create_news_dataset()
 
-        # Populate dataset.
+        # Populate collections
         self._populate_collection("tech_docs", tech_docs)
         self._populate_collection("faq_data", faq_data)
         self._populate_collection("news_articles", news_articles)
 
-        print('Dataset setup Complete !')
+        print("Dataset setup complete!")
 
-        
-
-
-
-
-
-
-
-
-
-
+        # Print summary
+        print("\n=== Dataset Summary ===")
+        for collection_name in ["tech_docs", "faq_data", "news_articles"]:
+            try:
+                collection = self.client.get_collection(collection_name)
+                count = collection.count()
+                print(f"{collection_name}: {count} documents")
+            except:
+                print(f"{collection_name}: Collection not found")
 
 
-
-
-
+if __name__ == "__main__":
+    processor = DataPrep()
+    processor.setup_all_datasets()
