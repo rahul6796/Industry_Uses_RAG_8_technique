@@ -9,7 +9,11 @@ from langchain_core.runnables import RunnablePassthrough
 from load_config import APPConfig
 import chromadb
 from langchain.schema import Document
+from dotenv import load_dotenv
+load_dotenv()
+
 APP_CONFIG = APPConfig.load()
+
 
 
 class StandardRAG:
@@ -94,11 +98,9 @@ class StandardRAG:
             self.logs.append("     V")
 
 
-
     def process_query(self, query: str, dataset: str)-> Tuple[str, List(str)]:
         self.logs = []
         self._log("Starting Standard RAG pipeline")
-    
 
         try:
 
@@ -106,8 +108,6 @@ class StandardRAG:
                 return f"Dataset {dataset} not aviable". self.logs
 
             retriever = self.retrievers[dataset]
-
-
 
             # RAG prompt:
             template =  """Answer the question based on the context:
@@ -159,12 +159,6 @@ class StandardRAG:
             error_msg = f"RAG failed: {str(e)}"
             self._log(error_msg)
             return f"Error processing request: {str(e)}", self.logs
-
-        
-
-
-        
-
 
 
 

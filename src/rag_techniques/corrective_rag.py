@@ -236,7 +236,7 @@ class CorrectiveRAG:
         return relevant_docs, need_web_search
 
 
-                    
+
 
 
 
